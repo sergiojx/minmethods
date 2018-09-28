@@ -38,6 +38,11 @@ def popfitnes(pop = 0,minVal = -5.12, maxVal = 5.12, codeLen = 16, genQty = 2, f
     fitList = [funct(np.expand_dims(varOut, axis=-1)) for varOut in lalout]
     return fitList,lalout
 
+# Workout fitness for GS test functions (mapping functions)
+def popfitnes4BinMapping(pop = 0, funct = None):
+    fitList = [funct(binString) for binString in pop]
+    return fitList
+
 # Return ascendent ordered pop
 def rankWeighting(fitList = 0,fitVal = 0, pop = 0, keep = 1):
     rm = int(len(fitList) - (len(fitList)*keep))
@@ -72,8 +77,14 @@ def weightedSelection(ordPop, distribution, pairsQty):
     for i in range(0,pairsQty*2,2):
         p1 = np.random.uniform(0,1,1)
         p2 = np.random.uniform(0,1,1)
-        parentOut[i] = ordPop[np.where( p1 <= distribution)[0][0]]
-        parentOut[i+1] = ordPop[np.where( p2 <= distribution)[0][0]]
+        if np.isnan(distribution).any() == True:
+            parentOut[i] = ordPop[0]
+            parentOut[i+1] = ordPop[0]
+        else:
+            parentOut[i] = ordPop[np.where( p1 <= distribution)[0][0]]
+            parentOut[i+1] = ordPop[np.where( p2 <= distribution)[0][0]]
+       
+           
         
     return parentOut
 
