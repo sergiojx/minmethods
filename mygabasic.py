@@ -1,4 +1,5 @@
 from bitstring import BitArray
+from scipy.spatial import distance
 import numpy as np
 import math
 import sys
@@ -34,6 +35,28 @@ def gdeco(bitlist = 0, minVal = -5.12, maxVal = 5.12, codeLen = 16):
     supBound = minVal + rang*(dig + 1)
     return (infBound + supBound)/2
 
+# Workout fitness Multy Modal SHARING
+""" 
+def popfitnes_MultyM(pop = 0,minVal = -5.12, maxVal = 5.12, codeLen = 16, genQty = 2, funct = None, sigma = 0.2):
+    splitPop = pop.reshape((pop.shape[0],-1,codeLen))
+    lalout = np.zeros((pop.shape[0],genQty))
+    index = 0
+    for dimSet in splitPop:
+        valOut = [gdeco(bitlist = dim, minVal = minVal, maxVal = maxVal, codeLen = codeLen) for dim in dimSet]
+        lalout[index] = valOut
+        index = index + 1
+    # TO DO: Find neighbors for each individual 
+    
+    fitList = [funct(np.expand_dims(varOut, axis=-1)) for varOut in lalout]
+    for varOut in lalout:
+        count = 0
+        for idv in pop.shape[0]:
+            dx = distance.euclidean(varOut, lalout[idv])
+            if dx <= sigma:
+                count = count + 1
+            
+    return fitList,lalout
+"""    
 # Workout fitness
 def popfitnes(pop = 0,minVal = -5.12, maxVal = 5.12, codeLen = 16, genQty = 2, funct = None):
     splitPop = pop.reshape((pop.shape[0],-1,codeLen))
@@ -133,6 +156,15 @@ def tournamentSelection(ordPop, fitList, pairsQty):
         parentOut[i+1] = ordPop[c0]
         if fitList[c0] > fitList[c1]:
             parentOut[i+1] = ordPop[c1]
+            
+    return parentOut
+
+# Random Uniform Parents selection
+def randomUniformSelection(ordPop, fitList, pairsQty):
+    parentOut = np.zeros(ordPop.shape).astype(np.uint8)
+    for i in range(0,pairsQty*2,2):
+        parentOut[i] = ordPop[np.random.randint(len(fitList))]
+        parentOut[i+1] = ordPop[np.random.randint(len(fitList))]
             
     return parentOut
 
@@ -241,7 +273,75 @@ def childenGen(parents, matingPercent = 0.7, mutaPercent = 0.03):
     
     return childrenOut
 
- 
+# Multy modal Generates children for Deterministic Crowding     
+def childenGen_MultyM(parents, matingPercent = 0.7, mutaPercent = 0.03,minVal = 0,maxVal = 1 ,codeLen = 16,funct = None):
+    childrenOut = np.zeros(parents.shape).astype(np.uint8)
+    for i in range(0,parents.shape[0],2):
+        P1 = parents[i]
+        P2 = parents[i+1]
+        matingp = np.random.uniform(0,1,1)
+        if matingp <= matingPercent:
+            # print('Mating')
+            # print(P1)
+            # print(P2)
+            
+            crossover_point = np.random.randint((parents.shape[1] - 1))
+            out1 = np.append(P1[0:(crossover_point + 1)], P2[crossover_point + 1:])
+            out2 = np.append(P2[0:(crossover_point + 1)], P1[crossover_point + 1:])
+            
+            mup = np.random.uniform(0,1,parents.shape[1])
+            mask = ((1-mutaPercent) <= mup).astype(np.uint8)
+            mutate = np.where( mask == 1)
+            mutation = np.logical_not(out1[mutate[0]]).astype(np.uint8)
+            out1[mutate[0]] = mutation
+            
+            mup = np.random.uniform(0,1,parents.shape[1])
+            mask = ((1-mutaPercent) <= mup).astype(np.uint8)
+            mutate = np.where( mask == 1)
+            mutation = np.logical_not(out2[mutate[0]]).astype(np.uint8)
+            out2[mutate[0]] = mutation
+            # print(out1)
+            # print(out2)
+            
+            # TODO: support more than one dimention 
+            gdecoOut1 = gdeco(bitlist = out1, minVal = minVal, maxVal = maxVal, codeLen = codeLen)
+            gdecoOut2 = gdeco(bitlist = out2, minVal = minVal, maxVal = maxVal, codeLen = codeLen)
+            gdecoP1 = gdeco(bitlist = P1, minVal = minVal, maxVal = maxVal, codeLen = codeLen)
+            gdecoP2 = gdeco(bitlist = P2, minVal = minVal, maxVal = maxVal, codeLen = codeLen)
+            edistance1 = distance.euclidean(gdecoP1, gdecoOut1) + distance.euclidean(gdecoP2, gdecoOut2)
+            edistance2 = distance.euclidean(gdecoP1, gdecoOut2) + distance.euclidean(gdecoP2, gdecoOut1)
+            # Child selection
+            if edistance1 < edistance2:
+                fith = funct(gdecoOut1)
+                fitp = funct(gdecoP1)
+                if  fith <= fitp:
+                    childrenOut[i] = out1
+                else:
+                    childrenOut[i] = P1
+                fith = funct(gdecoOut2)
+                fitp = funct(gdecoP2)
+                if  fith <= fitp:
+                    childrenOut[i + 1] = out1
+                else:
+                    childrenOut[i + 1] = P2
+            else:
+                fith = funct(gdecoOut2)
+                fitp = funct(gdecoP1)
+                if  fith <= fitp:
+                    childrenOut[i] = out2
+                else:
+                    childrenOut[i] = P1
+                fith = funct(gdecoOut1)
+                fitp = funct(gdecoP2)
+                if  fith <= fitp:
+                    childrenOut[i + 1] = out1
+                else:
+                    childrenOut[i + 1] = P2
+        else:
+            childrenOut[i] = P1
+            childrenOut[i+1] = P2
+    
+    return childrenOut 
 
 def haeaMin(population, selectedPop, gopp, fitList, function, mutationP, lnrate):
     
