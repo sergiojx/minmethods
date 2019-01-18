@@ -3,6 +3,7 @@ from scipy.spatial import distance
 import numpy as np
 import math
 import sys
+from random import shuffle
 
 print("HOlA MYGABASIC")
 
@@ -124,7 +125,212 @@ def weightedSelection(ordPop, distribution, pairsQty):
            
         
     return parentOut
+# function for NSGA II multyobjective optimization
+def frontSetBuilder(fitListF1,fitListF2,Pop):
+    # list of indexed fronts. Each item holds a list of individual indexes belonging to a front
+    # in a ascending front rank. Each index identify each individual into the population
+    # arragement.
+    frontLit = []
+    # first front workout
+    front = dominance4AllMinTwoFunctions(fitListF1,fitListF2)
+    fontprev = front.copy()
+    # subsequent nondominated fronts
+    while len(front) > 0:
+        frontLit.append(front)
+        front = dominance4AllMinTwoFunctions(fitListF1,fitListF2,fontprev)
+        fontprev = fontprev + front
+    
 
+    """
+    The crowding-distance computation requires sorting the population
+    according to each objective function value in ascending
+    order of magnitude
+    """
+    fronRanks = []
+    global_fronRanks = []
+    for j in range(len(frontLit)):
+        # F1
+        frotnFitListF1 = [fitListF1[i] for i in frontLit[j]]
+        # distance array. Implicit initial order math with f1 rank order
+        # for first funtion reordering distance array is not required!!!
+        distance = np.zeros(len(frotnFitListF1))
+        distance[0] = np.inf
+        distance[len(frotnFitListF1) - 1] = np.inf
+        # f1 sorting
+        frotnFitListF1_SortedIdxs = np.argsort(frotnFitListF1)
+        frotnFitListF1np = np.asarray(frotnFitListF1)[frotnFitListF1_SortedIdxs]
+
+        f1Min = np.amin(frotnFitListF1) 
+        f1Max = np.amax(frotnFitListF1) 
+        # f1 component
+        if len(frotnFitListF1) == 3:
+            distance[1] = distance[1] + (frotnFitListF1np[2] - frotnFitListF1np[0])/(f1Max-f1Min)
+        elif len(frotnFitListF1) > 3:
+            for w in range(1,(len(frotnFitListF1) - 1)):
+                distance[w] = distance[w] + (frotnFitListF1np[w + 1] - frotnFitListF1np[w - 1])/(f1Max-f1Min)
+        """
+        print(frotnFitListF1)
+        print(frotnFitListF1_SortedIdxs)
+        print(frotnFitListF1np)
+        print(distance)
+        """
+    
+    
+        # reorder distance to match initial individual "position" into pop.
+        np.put(distance, frotnFitListF1_SortedIdxs, distance.copy())
+        # print(distance)
+
+        # F2
+        frotnFitListF2 = [fitListF2[i] for i in frontLit[j]]
+        # f2 sorting
+        frotnFitListF2_SortedIdxs = np.argsort(frotnFitListF2)
+        frotnFitListF2np = np.asarray(frotnFitListF2)[frotnFitListF2_SortedIdxs]
+
+        # pop sorting
+        # this is done for last function
+        # raked individuals into a front
+        # are returned ordered accoriding to last function evaluation
+        frontValList = [Pop[i] for i in frontLit[j]]
+        frontValListnp = np.asarray(frontValList)[frotnFitListF2_SortedIdxs]
+        # reorder distance array!!!
+        distance = distance[frotnFitListF2_SortedIdxs]
+
+        f2Min = np.amin(frotnFitListF2)
+        f2Max = np.amax(frotnFitListF2)
+        # f2 component
+        if len(frotnFitListF2) == 3:
+            distance[1] = distance[1] + (frotnFitListF2np[2] - frotnFitListF2np[0])/(f2Max-f2Min)
+        elif len(frotnFitListF2) > 3:
+            for w in range(1,(len(frotnFitListF2) - 1)):
+                distance[w] = distance[w] + (frotnFitListF2np[w + 1] - frotnFitListF2np[w - 1])/(f2Max-f2Min)
+
+        """
+        print(frotnFitListF2)
+        print(frotnFitListF2_SortedIdxs)
+        print(frotnFitListF2np)
+        print(distance)
+        """
+   
+        rankedFront = []  
+        for w in range(len(frotnFitListF1)):
+            rankedFront.append({'rank':distance[w],'indiv':frontValListnp[w],'front':j})
+            global_fronRanks.append({'rank':distance[w],'indiv':frontValListnp[w],'front':j})
+
+        fronRanks.append(rankedFront)
+    return global_fronRanks,fronRanks,frontLit
+
+def childenGen4MultyObjMin(parents, selection, matingPercent = 0.7, mutaPercent = 0.03):
+    childrenOut = np.zeros(parents.shape).astype(np.uint8)
+    for i in range(0,parents.shape[0]):
+        P1 = parents[i]
+        P2 = selection[i]
+        matingp = np.random.uniform(0,1,1)
+        if matingp <= matingPercent:
+            # print('Mating')
+            # print(P1)
+            # print(P2)
+            
+            crossover_point = np.random.randint((parents.shape[1] - 1))
+            out1 = np.append(P1[0:(crossover_point + 1)], P2[crossover_point + 1:])
+            out2 = np.append(P2[0:(crossover_point + 1)], P1[crossover_point + 1:])
+            
+            mup = np.random.uniform(0,1,parents.shape[1])
+            mask = ((1-mutaPercent) <= mup).astype(np.uint8)
+            mutate = np.where( mask == 1)
+            mutation = np.logical_not(out1[mutate[0]]).astype(np.uint8)
+            out1[mutate[0]] = mutation
+            
+            mup = np.random.uniform(0,1,parents.shape[1])
+            mask = ((1-mutaPercent) <= mup).astype(np.uint8)
+            mutate = np.where( mask == 1)
+            mutation = np.logical_not(out2[mutate[0]]).astype(np.uint8)
+            out2[mutate[0]] = mutation
+            # print(out1)
+            # print(out2)
+            chSelectionp = np.random.uniform(0,1,1)
+            if chSelectionp > 0.5:
+                childrenOut[i] = out1
+            else:
+                childrenOut[i] = out2
+        else:
+            childrenOut[i] = P1
+            
+    
+    return childrenOut
+
+# SPEAII Raw Fitness workout
+def speaIIRawfitness4AllMinTwoFunctions(fitListF1,fitListF2):
+    
+    Strength = np.zeros(len(fitListF1))
+    Rawfitness = np.zeros(len(fitListF1))
+    for p in range(len(fitListF1)):
+        for q in range(len(fitListF1)):
+            if (fitListF1[q] <= fitListF1[p] and fitListF2[q] <= fitListF2[p]) and (fitListF1[q] < fitListF1[p] or fitListF2[q] < fitListF2[p]):
+                Strength[q] = Strength[q] + 1
+        
+    for p in range(len(fitListF1)):
+        for q in range(len(fitListF1)):
+            if (fitListF1[q] <= fitListF1[p] and fitListF2[q] <= fitListF2[p]) and (fitListF1[q] < fitListF1[p] or fitListF2[q] < fitListF2[p]):
+                Rawfitness[p] = Rawfitness[p] + Strength[q]
+    
+                          
+    return  Rawfitness 
+    
+    
+# SPEAII Distance workout
+def speaIIDistance4AllMinTwoFunctions(fitListF1,fitListF2):
+    
+    k = int(math.sqrt(len(fitListF1)))
+    D = np.zeros(len(fitListF1))
+    distances = np.zeros((len(fitListF1),len(fitListF1)))
+    stack = np.stack((fitListF1, fitListF2), axis=1)
+    distances = np.zeros((len(fitListF1),len(fitListF1)))
+    for p in range(len(fitListF1)):
+        for q in range(len(fitListF1)):
+            distances[p][q] = distance.euclidean(stack[p], stack[q])
+    
+    distances.sort(axis=1)
+    D = distances[:,k]
+    Dreturn = 1/(D + 2)   
+        
+    return distances,Dreturn
+
+def tournamentSelection4MultyObjMin(ordPop, ordPopDic):
+    parentOut = np.zeros(ordPop.shape).astype(np.uint8)
+    
+    for i in range(len(ordPopDic)):
+        
+        cp1 = np.random.randint(len(ordPopDic))
+        cp2 = np.random.randint(len(ordPopDic))
+        cp3 = np.random.randint(len(ordPopDic))
+        cp4 = np.random.randint(len(ordPopDic))
+        c0 = cp1
+        c1 = cp3
+        if (ordPopDic[cp1]['front'] < ordPopDic[cp2]['front'] or
+            (ordPopDic[cp1]['front'] == ordPopDic[cp2]['front'] and ordPopDic[cp1]['rank'] > ordPopDic[cp2]['rank'])):
+            c0 = cp1
+        if (ordPopDic[cp2]['front'] < ordPopDic[cp1]['front'] or
+            (ordPopDic[cp2]['front'] == ordPopDic[cp1]['front'] and ordPopDic[cp2]['rank'] > ordPopDic[cp1]['rank'])):
+            c0 = cp2
+            
+        if (ordPopDic[cp3]['front'] < ordPopDic[cp4]['front'] or
+            (ordPopDic[cp3]['front'] == ordPopDic[cp4]['front'] and ordPopDic[cp3]['rank'] > ordPopDic[cp4]['rank'])):
+            c1 = cp3
+        if (ordPopDic[cp4]['front'] < ordPopDic[cp3]['front'] or
+            (ordPopDic[cp4]['front'] == ordPopDic[cp3]['front'] and ordPopDic[cp4]['rank'] > ordPopDic[cp3]['rank'])):
+            c1 = cp4
+            
+        if (ordPopDic[c0]['front'] < ordPopDic[c1]['front'] or
+            (ordPopDic[c0]['front'] == ordPopDic[c1]['front'] and ordPopDic[c0]['rank'] > ordPopDic[c1]['rank'])):
+            parentOut[i] = ordPopDic[c0]['indiv']
+            
+        if (ordPopDic[c1]['front'] < ordPopDic[c0]['front'] or
+            (ordPopDic[c1]['front'] == ordPopDic[c0]['front'] and ordPopDic[c1]['rank'] > ordPopDic[c0]['rank'])):
+            parentOut[i] = ordPopDic[c1]['indiv']
+            
+            
+    return parentOut
+    
 # Tournament Parents selection
 def tournamentSelection(ordPop, fitList, pairsQty):
     parentOut = np.zeros(ordPop.shape).astype(np.uint8)
@@ -155,6 +361,40 @@ def tournamentSelection(ordPop, fitList, pairsQty):
             c1 = cp4
         parentOut[i+1] = ordPop[c0]
         if fitList[c0] > fitList[c1]:
+            parentOut[i+1] = ordPop[c1]
+            
+    return parentOut
+
+# Tournament Parents selection
+def tournamentSelection4Max(ordPop, fitList, pairsQty):
+    parentOut = np.zeros(ordPop.shape).astype(np.uint8)
+    for i in range(0,pairsQty*2,2):
+        cp1 = np.random.randint(len(fitList))
+        cp2 = np.random.randint(len(fitList))
+        cp3 = np.random.randint(len(fitList))
+        cp4 = np.random.randint(len(fitList))
+        c0 = cp1
+        c1 = cp3
+        if fitList[cp1] < fitList[cp2]:
+            c0 = cp2
+        if fitList[cp3] < fitList[cp4]:
+            c1 = cp4
+        parentOut[i] = ordPop[c0]
+        if fitList[c0] < fitList[c1]:
+            parentOut[i] = ordPop[c1]
+        
+        cp1 = np.random.randint(len(fitList))
+        cp2 = np.random.randint(len(fitList))
+        cp3 = np.random.randint(len(fitList))
+        cp4 = np.random.randint(len(fitList))
+        c0 = cp1
+        c1 = cp3
+        if fitList[cp1] < fitList[cp2]:
+            c0 = cp2
+        if fitList[cp3] < fitList[cp4]:
+            c1 = cp4
+        parentOut[i+1] = ordPop[c0]
+        if fitList[c0] < fitList[c1]:
             parentOut[i+1] = ordPop[c1]
             
     return parentOut
@@ -314,26 +554,26 @@ def childenGen_MultyM(parents, matingPercent = 0.7, mutaPercent = 0.03,minVal = 
             if edistance1 < edistance2:
                 fith = funct(gdecoOut1)
                 fitp = funct(gdecoP1)
-                if  fith <= fitp:
+                if  fith >= fitp:
                     childrenOut[i] = out1
                 else:
                     childrenOut[i] = P1
                 fith = funct(gdecoOut2)
                 fitp = funct(gdecoP2)
-                if  fith <= fitp:
+                if  fith >= fitp:
                     childrenOut[i + 1] = out1
                 else:
                     childrenOut[i + 1] = P2
             else:
                 fith = funct(gdecoOut2)
                 fitp = funct(gdecoP1)
-                if  fith <= fitp:
+                if  fith >= fitp:
                     childrenOut[i] = out2
                 else:
                     childrenOut[i] = P1
                 fith = funct(gdecoOut1)
                 fitp = funct(gdecoP2)
-                if  fith <= fitp:
+                if  fith >= fitp:
                     childrenOut[i + 1] = out1
                 else:
                     childrenOut[i + 1] = P2
@@ -343,6 +583,198 @@ def childenGen_MultyM(parents, matingPercent = 0.7, mutaPercent = 0.03,minVal = 
     
     return childrenOut 
 
+def childenGen_MultyM_haeaMax(population, selectedPop, gopp, fitList, function, mutationP, lnrate, minVal, maxVal, codeLen):
+    LEARNER_RATE = lnrate
+    
+    # make room for new offspring
+    childrenOut = np.zeros(population.shape).astype(np.uint8)
+    # Get indexes of GA operator application probabilities is an descending order
+    probOrderIndex = np.flip(np.argsort(gopp), axis =-1)
+    # Descending sort of GA operator application probabilities
+    opgSrt = np.flip(np.sort(gopp), axis =-1)
+    # Comulative prob. ascending sort of GA operator application probabilities
+    comulativeGopp = np.cumsum(opgSrt, axis =-1)
+    for indiv in range(0, population.shape[0]):
+        # Select genetic operator
+        gopSelp = np.random.uniform(0,1,1)
+        # 0: Mutation, 1: Mating
+        operator = probOrderIndex[indiv][np.where(gopSelp <= comulativeGopp[indiv])[0][0]]
+        # Load individuals
+        P1 = population[indiv]
+        P2 = selectedPop[indiv]
+        if operator == 0:
+            # This is a big mistake, If out1 changes, P1 changes too
+            # out1 = P1
+            out1 = np.copy(np.flip(P1,0))
+            out2 = np.copy(P1)
+            
+            
+            mup = np.random.uniform(0,1,population.shape[1])
+            # mutaPercent = 1/(population.shape[1])
+            mutaPercent = mutationP
+            mask = (mup <= mutaPercent).astype(np.uint8)
+            mutate = np.where( mask == 1)
+            mutation = np.logical_not(out1[mutate[0]]).astype(np.uint8)
+            out1[mutate[0]] = mutation
+            # out2 = np.copy(out1)
+            mup = np.random.uniform(0,1,population.shape[1])
+            # mutaPercent = 1/(population.shape[1])
+            mutaPercent = mutationP
+            mask = (mup <= mutaPercent).astype(np.uint8)
+            mutate = np.where( mask == 1)
+            mutation = np.logical_not(out1[mutate[0]]).astype(np.uint8)
+            out2[mutate[0]] = mutation
+            
+            # Main Parent
+            p1fit = function(P1)
+            out1fit = function(out1)
+            out2fit = function(out2)
+            
+            # TODO: support more than one dimention 
+            gdecoOut1 = gdeco(bitlist = out1, minVal = minVal, maxVal = maxVal, codeLen = codeLen)
+            gdecoOut2 = gdeco(bitlist = out2, minVal = minVal, maxVal = maxVal, codeLen = codeLen)
+            gdecoP1 = gdeco(bitlist = P1, minVal = minVal, maxVal = maxVal, codeLen = codeLen)
+            
+            edistance1 = distance.euclidean(gdecoP1, gdecoOut1) 
+            edistance2 = distance.euclidean(gdecoP1, gdecoOut2)
+            
+            if edistance1 < edistance2:
+                if out1fit > p1fit:
+                    childrenOut[indiv] = out1
+                    # Encrease this operator probability
+                    gopp[indiv][operator] = (1 + np.random.uniform(0,1,1))*LEARNER_RATE*gopp[indiv][operator] 
+                elif out1fit == p1fit:
+                    childrenOut[indiv] = out1
+                    # Decrease this operator probability
+                    gopp[indiv][operator] = (1 - np.random.uniform(0,1,1))*LEARNER_RATE*gopp[indiv][operator]
+                else:
+                    childrenOut[indiv] = P1
+                    # Decrease this operator probability
+                    gopp[indiv][operator] = (1 - np.random.uniform(0,1,1))*LEARNER_RATE*gopp[indiv][operator]
+            else:
+                if out2fit > p1fit:
+                    childrenOut[indiv] = out2
+                    # Encrease this operator probability
+                    gopp[indiv][operator] = (1 + np.random.uniform(0,1,1))*LEARNER_RATE*gopp[indiv][operator] 
+                elif out2fit == p1fit:
+                    childrenOut[indiv] = out2
+                    # Decrease this operator probability
+                    gopp[indiv][operator] = (1 - np.random.uniform(0,1,1))*LEARNER_RATE*gopp[indiv][operator]
+                else:
+                    childrenOut[indiv] = P1
+                    # Decrease this operator probability
+                    gopp[indiv][operator] = (1 - np.random.uniform(0,1,1))*LEARNER_RATE*gopp[indiv][operator]
+            
+        elif operator == 1:
+            # 1: Mating
+            crossover_point = np.random.randint((population.shape[1] - 1))
+            out1 = np.append(P1[0:(crossover_point + 1)], P2[crossover_point + 1:])
+            out2 = np.append(P2[0:(crossover_point + 1)], P1[crossover_point + 1:])
+            # Main Parent
+            p1fit = function(P1)
+            out1fit = function(out1)
+            out2fit = function(out2)
+            # TODO: support more than one dimention 
+            gdecoOut1 = gdeco(bitlist = out1, minVal = minVal, maxVal = maxVal, codeLen = codeLen)
+            gdecoOut2 = gdeco(bitlist = out2, minVal = minVal, maxVal = maxVal, codeLen = codeLen)
+            gdecoP1 = gdeco(bitlist = P1, minVal = minVal, maxVal = maxVal, codeLen = codeLen)
+            
+            edistance1 = distance.euclidean(gdecoP1, gdecoOut1) 
+            edistance2 = distance.euclidean(gdecoP1, gdecoOut2)
+            if edistance1 < edistance2:
+                if out1fit > p1fit:
+                    childrenOut[indiv] = out1
+                    # Encrease this operator probability
+                    gopp[indiv][operator] = (1 + np.random.uniform(0,1,1))*LEARNER_RATE*gopp[indiv][operator] 
+                elif out1fit == p1fit:
+                    childrenOut[indiv] = out1
+                    # Decrease this operator probability
+                    gopp[indiv][operator] = (1 - np.random.uniform(0,1,1))*LEARNER_RATE*gopp[indiv][operator]
+                else:
+                    childrenOut[indiv] = P1
+                    # Decrease this operator probability
+                    gopp[indiv][operator] = (1 - np.random.uniform(0,1,1))*LEARNER_RATE*gopp[indiv][operator]
+            else:
+                if out2fit > p1fit:
+                    childrenOut[indiv] = out2
+                    # Encrease this operator probability
+                    gopp[indiv][operator] = (1 + np.random.uniform(0,1,1))*LEARNER_RATE*gopp[indiv][operator] 
+                elif out2fit == p1fit:
+                    childrenOut[indiv] = out2
+                    # Decrease this operator probability
+                    gopp[indiv][operator] = (1 - np.random.uniform(0,1,1))*LEARNER_RATE*gopp[indiv][operator]
+                else:
+                    childrenOut[indiv] = P1
+                    # Decrease this operator probability
+                    gopp[indiv][operator] = (1 - np.random.uniform(0,1,1))*LEARNER_RATE*gopp[indiv][operator]
+        # 2: Single Mutation
+        else:
+            # This is a big mistake, If out1 changes, P1 changes too
+            # out1 = P1
+            out1 = np.copy(P1)
+            out2 = np.copy(P1)
+            
+            
+            mup = np.random.uniform(0,1,population.shape[1])
+            # mutaPercent = 1/(population.shape[1])
+            mutaPercent = mutationP
+            mask = (mup <= mutaPercent).astype(np.uint8)
+            mutate = np.where( mask == 1)
+            mutation = np.logical_not(out1[mutate[0]]).astype(np.uint8)
+            out1[mutate[0]] = mutation
+            # out2 = np.copy(out1)
+            mup = np.random.uniform(0,1,population.shape[1])
+            # mutaPercent = 1/(population.shape[1])
+            mutaPercent = mutationP
+            mask = (mup <= mutaPercent).astype(np.uint8)
+            mutate = np.where( mask == 1)
+            mutation = np.logical_not(out1[mutate[0]]).astype(np.uint8)
+            out2[mutate[0]] = mutation
+            # Main Parent
+            p1fit = function(P1)
+            out1fit = function(out1)
+            out2fit = function(out2)
+            
+            # TODO: support more than one dimention 
+            gdecoOut1 = gdeco(bitlist = out1, minVal = minVal, maxVal = maxVal, codeLen = codeLen)
+            gdecoOut2 = gdeco(bitlist = out2, minVal = minVal, maxVal = maxVal, codeLen = codeLen)
+            gdecoP1 = gdeco(bitlist = P1, minVal = minVal, maxVal = maxVal, codeLen = codeLen)
+            
+            edistance1 = distance.euclidean(gdecoP1, gdecoOut1) 
+            edistance2 = distance.euclidean(gdecoP1, gdecoOut2)
+            
+            if edistance1 < edistance2:
+                if out1fit > p1fit:
+                    childrenOut[indiv] = out1
+                    # Encrease this operator probability
+                    gopp[indiv][operator] = (1 + np.random.uniform(0,1,1))*LEARNER_RATE*gopp[indiv][operator] 
+                elif out1fit == p1fit:
+                    childrenOut[indiv] = out1
+                    # Decrease this operator probability
+                    gopp[indiv][operator] = (1 - np.random.uniform(0,1,1))*LEARNER_RATE*gopp[indiv][operator]
+                else:
+                    childrenOut[indiv] = P1
+                    # Decrease this operator probability
+                    gopp[indiv][operator] = (1 - np.random.uniform(0,1,1))*LEARNER_RATE*gopp[indiv][operator]
+            else:
+                if out2fit > p1fit:
+                    childrenOut[indiv] = out2
+                    # Encrease this operator probability
+                    gopp[indiv][operator] = (1 + np.random.uniform(0,1,1))*LEARNER_RATE*gopp[indiv][operator] 
+                elif out2fit == p1fit:
+                    childrenOut[indiv] = out2
+                    # Decrease this operator probability
+                    gopp[indiv][operator] = (1 - np.random.uniform(0,1,1))*LEARNER_RATE*gopp[indiv][operator]
+                else:
+                    childrenOut[indiv] = P1
+                    # Decrease this operator probability
+                    gopp[indiv][operator] = (1 - np.random.uniform(0,1,1))*LEARNER_RATE*gopp[indiv][operator]
+            
+        # normalize individual operators probabilities
+        gopp[indiv] = gopp[indiv]/np.sum(gopp[indiv])
+                    
+    return   childrenOut,gopp
+    
 def haeaMin(population, selectedPop, gopp, fitList, function, mutationP, lnrate):
     
     LEARNER_RATE = lnrate
