@@ -19,6 +19,6 @@ Multimodal and multiobjective algorithms
 ## coevolution.ipynb
 Coevolution example
 ## griewankMean.ipynb, rastriginMean.ipynb	and schwefelMean.ipynb
-Optimization experiments
+Optimization experiments. Genetic algorithms and other methods
 ## mygabasic.py
 Genetic algorithms funtion set python module
