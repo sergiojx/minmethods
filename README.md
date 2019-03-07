@@ -11,7 +11,7 @@ http://dis.unal.edu.co/~jgomezpe/
 ## Desceptive4MaxOne.ipynb
 Optimization based on genetic algorithms applied to MAXONE and Deceptive4 functions
 ## Dinamics.ipynb
-Optimization methods applied to system dynamic 
+Optimization methods applied to system dynamics 
 ## Geological.ipynb
 Geological application of multimodal optimization GA
 ## Multimodal.ipynb and Multiobjetivo.ipynb
