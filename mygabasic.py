@@ -399,12 +399,31 @@ def tournamentSelection4Max(ordPop, fitList, pairsQty):
             
     return parentOut
 
+# Random Uniform Parents selection for geological ston
+# classification
+def randomUniformSelection4Geological(objList, Qty):
+    selectedList = []
+    for i in range(Qty):
+        selectedList.append(objList[np.random.randint(Qty)])
+            
+    return selectedList
+
 # Random Uniform Parents selection
 def randomUniformSelection(ordPop, fitList, pairsQty):
     parentOut = np.zeros(ordPop.shape).astype(np.uint8)
     for i in range(0,pairsQty*2,2):
         parentOut[i] = ordPop[np.random.randint(len(fitList))]
         parentOut[i+1] = ordPop[np.random.randint(len(fitList))]
+            
+    return parentOut
+
+# Random Uniform Parents selection
+def randomUniformTripletSelection(ordPop, fitList, fitVal, pairsQty, d):
+    parentOut = np.zeros((pairsQty*3, d))
+    for i in range(0,pairsQty*3,3):
+        parentOut[i] = fitVal[np.random.randint(len(fitList))]
+        parentOut[i+1] = fitVal[np.random.randint(len(fitList))]
+        parentOut[i+2] = fitVal[np.random.randint(len(fitList))]
             
     return parentOut
 
@@ -583,6 +602,262 @@ def childenGen_MultyM(parents, matingPercent = 0.7, mutaPercent = 0.03,minVal = 
     
     return childrenOut 
 
+
+def childenGen_MultyM_haeaMax4Geological(objList, pselect, d, imgeo, codeLen, function, mutationP, lnrate):
+    childrenOut = []
+    LEARNER_RATE = lnrate
+    for indiv in range(0, len(objList)):
+        probOrderIndex = np.flip(np.argsort(objList[indiv]["gopp"]), axis = -1)
+        opgSrt = np.flip(np.sort(objList[indiv]["gopp"]), axis = -1)
+        comulativeGopp = np.cumsum(opgSrt, axis = -1)
+        # Select genetic operator
+        gopSelp = np.random.uniform(0,1,1)
+        # 0: Mutation, 1: Mating
+        operator = probOrderIndex[np.where(gopSelp <= comulativeGopp)[0][0]]
+        # Load individuals
+        P1 = objList[indiv]["indivudual"]
+        P2 = pselect[indiv]["indivudual"]
+        if operator == 0:
+            # This is a big mistake, If out1 changes, P1 changes too
+            # out1 = P1
+            out1 = np.copy(np.flip(P1,0))
+            out2 = np.copy(P1)
+            
+            mup = np.random.uniform(0,1,d)
+            # mutaPercent = 1/(population.shape[1])
+            mutaPercent = mutationP
+            mask = (mup <= mutaPercent).astype(np.uint8)
+            mutate = np.where( mask == 1)
+            mutation = np.logical_not(out1[mutate[0]]).astype(np.uint8)
+            out1[mutate[0]] = mutation
+            # out2 = np.copy(out1)
+            mup = np.random.uniform(0,1,d)
+            # mutaPercent = 1/(population.shape[1])
+            mutaPercent = mutationP
+            mask = (mup <= mutaPercent).astype(np.uint8)
+            mutate = np.where( mask == 1)
+            mutation = np.logical_not(out1[mutate[0]]).astype(np.uint8)
+            out2[mutate[0]] = mutation
+            
+            # Main Parent
+            # p1fit = function(imgeo, P1, codeLen)
+            out1fit = function(imgeo, out1, codeLen)
+            out2fit = function(imgeo, out2, codeLen)
+            
+            edistance1 = distance.euclidean((objList[indiv]["aVal"],objList[indiv]["fqVal"],objList[indiv]["agVal"]), 
+                                            (out1fit["aVal"],out1fit["fqVal"],out1fit["agVal"])) 
+            edistance2 = distance.euclidean((objList[indiv]["aVal"],objList[indiv]["fqVal"],objList[indiv]["agVal"]), 
+                                            (out2fit["aVal"],out2fit["fqVal"],out2fit["agVal"]))
+            
+            if edistance1 < edistance2:
+                if out1fit["cost"] > objList[indiv]["cost"]:
+                    # inherit father gopp array
+                    out1fit["gopp"] = objList[indiv]["gopp"]
+                    # Encrease this operator probability
+                    out1fit["gopp"][operator] = (1 + np.random.uniform(0,1,1))*LEARNER_RATE*out1fit["gopp"][operator]
+                    # normalize individual operators probabilities
+                    out1fit["gopp"] = out1fit["gopp"]/np.sum(out1fit["gopp"])
+                    # append to children array
+                    childrenOut.append(out1fit)
+                elif out1fit["cost"] == objList[indiv]["cost"]:
+                    # inherit father gopp array
+                    out1fit["gopp"] = objList[indiv]["gopp"]
+                    # Encrease this operator probability
+                    out1fit["gopp"][operator] = (1 - np.random.uniform(0,1,1))*LEARNER_RATE*out1fit["gopp"][operator]
+                    # normalize individual operators probabilities
+                    out1fit["gopp"] = out1fit["gopp"]/np.sum(out1fit["gopp"])
+                    # append to children array
+                    childrenOut.append(out1fit)
+                else:
+                    # Decrease this operator probability
+                    objList[indiv]["gopp"][operator] = (1 - np.random.uniform(0,1,1))*LEARNER_RATE*objList[indiv]["gopp"][operator]
+                    # normalize individual operators probabilities
+                    objList[indiv]["gopp"] = objList[indiv]["gopp"]/np.sum(objList[indiv]["gopp"])
+                    # append to children array
+                    childrenOut.append(objList[indiv])
+                    
+            else:
+                if out2fit["cost"] > objList[indiv]["cost"]:
+                    # inherit father gopp array
+                    out2fit["gopp"] = objList[indiv]["gopp"]
+                    # Encrease this operator probability
+                    out2fit["gopp"][operator] = (1 + np.random.uniform(0,1,1))*LEARNER_RATE*out2fit["gopp"][operator]
+                    # normalize individual operators probabilities
+                    out2fit["gopp"] = out2fit["gopp"]/np.sum(out2fit["gopp"])
+                    # append to children array
+                    childrenOut.append(out2fit)
+                elif out2fit["cost"] == objList[indiv]["cost"]:
+                    # inherit father gopp array
+                    out2fit["gopp"] = objList[indiv]["gopp"]
+                    # Encrease this operator probability
+                    out2fit["gopp"][operator] = (1 - np.random.uniform(0,1,1))*LEARNER_RATE*out2fit["gopp"][operator]
+                    # normalize individual operators probabilities
+                    out2fit["gopp"] = out2fit["gopp"]/np.sum(out2fit["gopp"])
+                    # append to children array
+                    childrenOut.append(out2fit)
+                else:
+                    # Decrease this operator probability
+                    objList[indiv]["gopp"][operator] = (1 - np.random.uniform(0,1,1))*LEARNER_RATE*objList[indiv]["gopp"][operator]
+                    # normalize individual operators probabilities
+                    objList[indiv]["gopp"] = objList[indiv]["gopp"]/np.sum(objList[indiv]["gopp"])
+                    # append to children array
+                    childrenOut.append(objList[indiv])
+            
+        elif operator == 1:
+            # 1: Mating
+            crossover_point = np.random.randint((d - 1))
+            out1 = np.append(P1[0:(crossover_point + 1)], P2[crossover_point + 1:])
+            out2 = np.append(P2[0:(crossover_point + 1)], P1[crossover_point + 1:])
+            # Main Parent
+            # p1fit = function(P1)
+            out1fit = function(imgeo, out1, codeLen)
+            out2fit = function(imgeo, out2, codeLen)
+            
+            edistance1 = distance.euclidean((objList[indiv]["aVal"],objList[indiv]["fqVal"],objList[indiv]["agVal"]), 
+                                            (out1fit["aVal"],out1fit["fqVal"],out1fit["agVal"])) 
+            edistance2 = distance.euclidean((objList[indiv]["aVal"],objList[indiv]["fqVal"],objList[indiv]["agVal"]), 
+                                            (out2fit["aVal"],out2fit["fqVal"],out2fit["agVal"]))
+            if edistance1 < edistance2:
+                if out1fit["cost"] > objList[indiv]["cost"]:
+                    # inherit father gopp array
+                    out1fit["gopp"] = objList[indiv]["gopp"]
+                    # Encrease this operator probability
+                    out1fit["gopp"][operator] = (1 + np.random.uniform(0,1,1))*LEARNER_RATE*out1fit["gopp"][operator]
+                    # normalize individual operators probabilities
+                    out1fit["gopp"] = out1fit["gopp"]/np.sum(out1fit["gopp"])
+                    # append to children array
+                    childrenOut.append(out1fit)
+                elif out1fit["cost"] == objList[indiv]["cost"]:
+                    # inherit father gopp array
+                    out1fit["gopp"] = objList[indiv]["gopp"]
+                    # Encrease this operator probability
+                    out1fit["gopp"][operator] = (1 - np.random.uniform(0,1,1))*LEARNER_RATE*out1fit["gopp"][operator]
+                    # normalize individual operators probabilities
+                    out1fit["gopp"] = out1fit["gopp"]/np.sum(out1fit["gopp"])
+                    # append to children array
+                    childrenOut.append(out1fit)
+                else:
+                    # Decrease this operator probability
+                    objList[indiv]["gopp"][operator] = (1 - np.random.uniform(0,1,1))*LEARNER_RATE*objList[indiv]["gopp"][operator]
+                    # normalize individual operators probabilities
+                    objList[indiv]["gopp"] = objList[indiv]["gopp"]/np.sum(objList[indiv]["gopp"])
+                    # append to children array
+                    childrenOut.append(objList[indiv])
+                    
+            else:
+                if out2fit["cost"] > objList[indiv]["cost"]:
+                    # inherit father gopp array
+                    out2fit["gopp"] = objList[indiv]["gopp"]
+                    # Encrease this operator probability
+                    out2fit["gopp"][operator] = (1 + np.random.uniform(0,1,1))*LEARNER_RATE*out2fit["gopp"][operator]
+                    # normalize individual operators probabilities
+                    out2fit["gopp"] = out2fit["gopp"]/np.sum(out2fit["gopp"])
+                    # append to children array
+                    childrenOut.append(out2fit)
+                elif out2fit["cost"] == objList[indiv]["cost"]:
+                    # inherit father gopp array
+                    out2fit["gopp"] = objList[indiv]["gopp"]
+                    # Encrease this operator probability
+                    out2fit["gopp"][operator] = (1 - np.random.uniform(0,1,1))*LEARNER_RATE*out2fit["gopp"][operator]
+                    # normalize individual operators probabilities
+                    out2fit["gopp"] = out2fit["gopp"]/np.sum(out2fit["gopp"])
+                    # append to children array
+                    childrenOut.append(out2fit)
+                else:
+                    # Decrease this operator probability
+                    objList[indiv]["gopp"][operator] = (1 - np.random.uniform(0,1,1))*LEARNER_RATE*objList[indiv]["gopp"][operator]
+                    # normalize individual operators probabilities
+                    objList[indiv]["gopp"] = objList[indiv]["gopp"]/np.sum(objList[indiv]["gopp"])
+                    # append to children array
+                    childrenOut.append(objList[indiv])
+        else:
+            # This is a big mistake, If out1 changes, P1 changes too
+            # out1 = P1
+            out1 = np.copy(P1)
+            out2 = np.copy(P1)
+            
+            mup = np.random.uniform(0,1,d)
+            # mutaPercent = 1/(population.shape[1])
+            mutaPercent = mutationP
+            mask = (mup <= mutaPercent).astype(np.uint8)
+            mutate = np.where( mask == 1)
+            mutation = np.logical_not(out1[mutate[0]]).astype(np.uint8)
+            out1[mutate[0]] = mutation
+            # out2 = np.copy(out1)
+            mup = np.random.uniform(0,1,d)
+            # mutaPercent = 1/(population.shape[1])
+            mutaPercent = mutationP
+            mask = (mup <= mutaPercent).astype(np.uint8)
+            mutate = np.where( mask == 1)
+            mutation = np.logical_not(out1[mutate[0]]).astype(np.uint8)
+            out2[mutate[0]] = mutation
+            
+            # Main Parent
+            # p1fit = function(imgeo, P1, codeLen)
+            out1fit = function(imgeo, out1, codeLen)
+            out2fit = function(imgeo, out2, codeLen)
+            
+            edistance1 = distance.euclidean((objList[indiv]["aVal"],objList[indiv]["fqVal"],objList[indiv]["agVal"]), 
+                                            (out1fit["aVal"],out1fit["fqVal"],out1fit["agVal"])) 
+            edistance2 = distance.euclidean((objList[indiv]["aVal"],objList[indiv]["fqVal"],objList[indiv]["agVal"]), 
+                                            (out2fit["aVal"],out2fit["fqVal"],out2fit["agVal"]))
+            
+            if edistance1 < edistance2:
+                if out1fit["cost"] > objList[indiv]["cost"]:
+                    # inherit father gopp array
+                    out1fit["gopp"] = objList[indiv]["gopp"]
+                    # Encrease this operator probability
+                    out1fit["gopp"][operator] = (1 + np.random.uniform(0,1,1))*LEARNER_RATE*out1fit["gopp"][operator]
+                    # normalize individual operators probabilities
+                    out1fit["gopp"] = out1fit["gopp"]/np.sum(out1fit["gopp"])
+                    # append to children array
+                    childrenOut.append(out1fit)
+                elif out1fit["cost"] == objList[indiv]["cost"]:
+                    # inherit father gopp array
+                    out1fit["gopp"] = objList[indiv]["gopp"]
+                    # Encrease this operator probability
+                    out1fit["gopp"][operator] = (1 - np.random.uniform(0,1,1))*LEARNER_RATE*out1fit["gopp"][operator]
+                    # normalize individual operators probabilities
+                    out1fit["gopp"] = out1fit["gopp"]/np.sum(out1fit["gopp"])
+                    # append to children array
+                    childrenOut.append(out1fit)
+                else:
+                    # Decrease this operator probability
+                    objList[indiv]["gopp"][operator] = (1 - np.random.uniform(0,1,1))*LEARNER_RATE*objList[indiv]["gopp"][operator]
+                    # normalize individual operators probabilities
+                    objList[indiv]["gopp"] = objList[indiv]["gopp"]/np.sum(objList[indiv]["gopp"])
+                    # append to children array
+                    childrenOut.append(objList[indiv])
+                    
+            else:
+                if out2fit["cost"] > objList[indiv]["cost"]:
+                    # inherit father gopp array
+                    out2fit["gopp"] = objList[indiv]["gopp"]
+                    # Encrease this operator probability
+                    out2fit["gopp"][operator] = (1 + np.random.uniform(0,1,1))*LEARNER_RATE*out2fit["gopp"][operator]
+                    # normalize individual operators probabilities
+                    out2fit["gopp"] = out2fit["gopp"]/np.sum(out2fit["gopp"])
+                    # append to children array
+                    childrenOut.append(out2fit)
+                elif out2fit["cost"] == objList[indiv]["cost"]:
+                    # inherit father gopp array
+                    out2fit["gopp"] = objList[indiv]["gopp"]
+                    # Encrease this operator probability
+                    out2fit["gopp"][operator] = (1 - np.random.uniform(0,1,1))*LEARNER_RATE*out2fit["gopp"][operator]
+                    # normalize individual operators probabilities
+                    out2fit["gopp"] = out2fit["gopp"]/np.sum(out2fit["gopp"])
+                    # append to children array
+                    childrenOut.append(out2fit)
+                else:
+                    # Decrease this operator probability
+                    objList[indiv]["gopp"][operator] = (1 - np.random.uniform(0,1,1))*LEARNER_RATE*objList[indiv]["gopp"][operator]
+                    # normalize individual operators probabilities
+                    objList[indiv]["gopp"] = objList[indiv]["gopp"]/np.sum(objList[indiv]["gopp"])
+                    # append to children array
+                    childrenOut.append(objList[indiv])
+            
+    return childrenOut    
+    
 def childenGen_MultyM_haeaMax(population, selectedPop, gopp, fitList, function, mutationP, lnrate, minVal, maxVal, codeLen):
     LEARNER_RATE = lnrate
     
@@ -774,7 +1049,36 @@ def childenGen_MultyM_haeaMax(population, selectedPop, gopp, fitList, function, 
         gopp[indiv] = gopp[indiv]/np.sum(gopp[indiv])
                     
     return   childrenOut,gopp
+
+def diffEvolution(population, selectedPop, fitList, fitVal, function, matingPercent, d):
     
+    
+    
+    # make room for new offspring
+    childrenOut = np.zeros((population.shape[0],d))
+    
+    for indiv in range(0, population.shape[0]):
+        # Load individuals
+        P1 = selectedPop[indiv*3]
+        P2 = selectedPop[indiv*3 + 1]
+        P3 = selectedPop[indiv*3 + 2]
+        R = np.random.randint(0, d, 1)[0]
+        for k in range(d):
+            matingp = np.random.uniform(0,1,1)
+            if matingp <= matingPercent or k == R:
+                childrenOut[indiv][k] = P1[k] + 1*(P2[k] - P3[k])
+            else:
+                childrenOut[indiv][k] = fitVal[indiv][k]
+                
+    return childrenOut
+
+
+
+            
+        
+          
+               
+
 def haeaMin(population, selectedPop, gopp, fitList, function, mutationP, lnrate):
     
     LEARNER_RATE = lnrate
