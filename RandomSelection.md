@@ -61,17 +61,18 @@ print(comulativeGopp)
 random strategy selection
 0-0.2 Lets try something really effective if there is such strategy
 0.2-0.4
-0.4-0.6
+0.4-0.6 Lets try something that works 50/50
 0.6-0.8
 0.8-1 Lets give a chance to the worst strategy
 """
 gopSelp = np.random.uniform(0,1,1)
 print(gopSelp)
 
-
+# print candidates
 print(np.where(comulativeGopp >= gopSelp))
-
+# map comulative probability index to strategy index
 next_strategy_index = probOrderIndex[np.where(gopSelp <= comulativeGopp)[0][0]]
 
+print("chosen strtategy")
 print(next_strategy_index)
 ```
